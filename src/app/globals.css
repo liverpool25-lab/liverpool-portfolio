@@ -1,0 +1,254 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESIGN TOKENS
+───────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --background: #F6F4EF;
+    --foreground: #171717;
+    --surface-lowest: #FFFFFF;
+    --surface-low: #EFECE4;
+    --surface-default: #E6E2D8;
+    --surface-high: #DCD7CB;
+    --surface-highest: #D0CABF;
+    --on-surface: #171717;
+    --on-surface-variant: #5C6470;
+    --border-subtle: rgba(23, 23, 23, 0.08);
+
+    /* Motion tokens */
+    --dur-micro:    120ms;
+    --dur-nav:      180ms;
+    --dur-popup:    220ms;
+    --dur-modal:    280ms;
+    --dur-section:  420ms;
+    --dur-spatial:  400ms;
+    --ease-ios:     cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .dark {
+    --background: #0B0D10;
+    --foreground: #F2F4F4;
+    --surface-lowest: #08090B;
+    --surface-low: #161B20;
+    --surface-default: #1A1F26;
+    --surface-high: #232A32;
+    --surface-highest: #2D3540;
+    --on-surface: #F2F4F4;
+    --on-surface-variant: #9CA6B2;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--on-surface);
+    overflow-x: hidden;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCROLL SNAP / MARGIN
+───────────────────────────────────────────────────────────────────────────── */
+[id] {
+  scroll-margin-top: 80px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HIDE SCROLLBAR (gallery)
+───────────────────────────────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   3D GALLERY STAGE & COVERFLOW
+───────────────────────────────────────────────────────────────────────────── */
+.gallery-viewport-3d {
+  perspective: 1200px;
+  perspective-origin: center center;
+}
+
+.gallery-rail-3d {
+  transform-style: preserve-3d;
+  display: flex;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem 3.5rem 1.5rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.coverflow-card {
+  transform-style: preserve-3d;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s ease,
+              border-color 0.25s ease,
+              opacity 0.35s ease;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   iOS MICRO-INTERACTION PRESS SYSTEM
+───────────────────────────────────────────────────────────────────────────── */
+.ios-press {
+  transition: transform var(--dur-micro) var(--ease-ios),
+              background-color var(--dur-micro) ease,
+              border-color var(--dur-micro) ease,
+              box-shadow var(--dur-micro) ease,
+              color var(--dur-micro) ease;
+  will-change: transform;
+}
+.ios-press:active {
+  transform: scale(0.965);
+}
+
+/* Nav links — subtle hover scale without layout shift */
+.nav-link-hover {
+  transition: color var(--dur-nav) ease,
+              letter-spacing var(--dur-nav) ease;
+}
+.nav-link-hover:hover {
+  letter-spacing: 0.01em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SPIDER-MAN SPOTLIGHT MASK  (Layer C reveal)
+   Identical coordinate space to the base-photo exclusion mask in Hero.tsx.
+───────────────────────────────────────────────────────────────────────────── */
+.spiderman-spotlight-mask {
+  -webkit-mask-image: radial-gradient(
+    circle var(--mask-radius, 95px) at var(--mouse-x, 50%) var(--mouse-y, 45%),
+    rgba(0,0,0,1)  0%,
+    rgba(0,0,0,1)  calc(var(--mask-radius, 95px) - 24px),
+    rgba(0,0,0,0.45) calc(var(--mask-radius, 95px) - 8px),
+    transparent    var(--mask-radius, 95px)
+  );
+  mask-image: radial-gradient(
+    circle var(--mask-radius, 95px) at var(--mouse-x, 50%) var(--mouse-y, 45%),
+    rgba(0,0,0,1)  0%,
+    rgba(0,0,0,1)  calc(var(--mask-radius, 95px) - 24px),
+    rgba(0,0,0,0.45) calc(var(--mask-radius, 95px) - 8px),
+    transparent    var(--mask-radius, 95px)
+  );
+  transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PORTRAIT CARD — PREMIUM DARK TREATMENT
+───────────────────────────────────────────────────────────────────────────── */
+.portrait-card {
+  /* Keep transform reference clean for the pointer-tracking system */
+  transform-origin: center center;
+  transition: box-shadow 0.35s var(--ease-ios),
+              border-color 0.3s ease;
+}
+.portrait-card:hover {
+  box-shadow:
+    0 0 0 1px rgba(217, 50, 62, 0.18),
+    0 24px 60px rgba(0,0,0,0.6),
+    0 0 40px rgba(217, 50, 62, 0.12);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LIQUID GLASS NAVIGATION
+───────────────────────────────────────────────────────────────────────────── */
+.glass-nav {
+  background: rgba(22, 27, 32, 0.72);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,0.07);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.05) inset,
+    0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* Fallback for no backdrop-filter support */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-nav {
+    background: rgba(11, 13, 16, 0.95);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   GLASSMORPHISM CARD  (modals, compact surfaces)
+───────────────────────────────────────────────────────────────────────────── */
+.ios-glass {
+  background: rgba(22, 27, 32, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TYPEWRITER CURSOR BLINK
+───────────────────────────────────────────────────────────────────────────── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.animate-blink {
+  animation: blink 1s infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SCROLL-DRIVEN ENTRANCE  (utility classes for whileInView fallback)
+───────────────────────────────────────────────────────────────────────────── */
+.reveal-up {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity var(--dur-section) var(--ease-ios),
+              transform var(--dur-section) var(--ease-ios);
+}
+.reveal-up.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   IMAGE CARD HOVER ZOOM  (gallery + project cards)
+───────────────────────────────────────────────────────────────────────────── */
+.img-zoom {
+  transition: transform 0.5s var(--ease-ios), opacity 0.3s ease;
+  will-change: transform;
+}
+.group:hover .img-zoom {
+  transform: scale(1.04);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   REDUCED MOTION OVERRIDES
+   All nonessential animation is disabled; essential opacity transitions kept.
+───────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .coverflow-card {
+    transform: none !important;
+  }
+  .spiderman-spotlight-mask {
+    transition: none !important;
+  }
+  .portrait-card {
+    transition: none !important;
+  }
+  .ios-press:active {
+    transform: none !important;
+  }
+}
