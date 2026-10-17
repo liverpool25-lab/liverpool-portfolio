@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "@/context/LanguageContext";
 import { siteConfig } from "@/config/site";
@@ -56,12 +57,19 @@ export default function Header() {
     >
       <div className="max-w-[1240px] mx-auto h-20 px-4 sm:px-6 md:px-8 flex items-center justify-between">
 
-        {/* ── Wordmark ─────────────────────────────────────────────────── */}
-        <Link href="#intro" className="flex items-center gap-2 group ios-press">
-          <span className="font-display text-[22px] font-bold tracking-tight text-[#F2F4F4]">
-            LIVERPOOL
+        {/* ── LFC Logo Branding ─────────────────────────────────────────── */}
+        <Link href="#intro" className="flex items-center gap-3 group ios-press" aria-label="Liverpool FC Portfolio – back to top">
+          <Image
+            src="/assets/lfc-logo.png"
+            alt="Liverpool FC"
+            width={52}
+            height={52}
+            className="w-12 h-12 sm:w-[52px] sm:h-[52px] object-contain drop-shadow-[0_0_10px_rgba(217,50,62,0.45)] group-hover:drop-shadow-[0_0_16px_rgba(217,50,62,0.7)] group-hover:scale-105 transition-all duration-300"
+            priority
+          />
+          <span className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#F2F4F4] group-hover:text-white transition-colors duration-200">
+            Liverpool
           </span>
-          <span className="h-2 w-2 rounded-full bg-[#D9323E] transition-transform duration-300 group-hover:scale-125 shadow-[0_0_8px_rgba(217,50,62,0.6)]" />
         </Link>
 
         {/* ── Desktop Navigation — Liquid Glass Pill ───────────────────── */}

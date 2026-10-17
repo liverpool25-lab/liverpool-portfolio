@@ -8,6 +8,9 @@ import { useLanguage } from "@/context/LanguageContext";
 import { siteConfig } from "@/config/site";
 import { ArrowRight, MapPin, Sparkles } from "lucide-react";
 
+// ─── Mobile breakpoint (must match Tailwind "md") ─────────────────────────────
+const MOBILE_MQ = "(max-width: 767px)";
+
 export default function Hero() {
   const { t, language } = useLanguage();
 
@@ -54,26 +57,139 @@ export default function Hero() {
     setCurrentPhraseIndex(0);
   }, [language]);
 
-  // ─── Spider-Man Interactive Cursor Tracking ───────────────────────────────
+  // ─── Device / feature detection ───────────────────────────────────────────
   const cardRef = useRef<HTMLDivElement>(null);
   const [isRevealed, setIsRevealed] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const rafId = useRef<number | null>(null);
 
-  // Detect touch devices
+  // Detect touch / mobile / reduced-motion once on client
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
+    if (typeof window === "undefined") return;
+    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+    const mobileMq = window.matchMedia(MOBILE_MQ);
+    const reducedMq = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    setIsMobile(mobileMq.matches);
+    setPrefersReducedMotion(reducedMq.matches);
+
+    const onMobileChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    const onReducedChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+
+    if (mobileMq.addEventListener) {
+      mobileMq.addEventListener("change", onMobileChange);
+      reducedMq.addEventListener("change", onReducedChange);
+    } else {
+      mobileMq.addListener(onMobileChange as (e: MediaQueryListEvent) => void);
+      reducedMq.addListener(onReducedChange as (e: MediaQueryListEvent) => void);
     }
+
+    return () => {
+      if (mobileMq.removeEventListener) {
+        mobileMq.removeEventListener("change", onMobileChange);
+        reducedMq.removeEventListener("change", onReducedChange);
+      } else {
+        mobileMq.removeListener(onMobileChange as (e: MediaQueryListEvent) => void);
+        reducedMq.removeListener(onReducedChange as (e: MediaQueryListEvent) => void);
+      }
+    };
   }, []);
 
-  /**
-   * Update CSS custom properties directly on the card element via rAF.
-   * We track three coordinate sets:
-   *   --mouse-x / --mouse-y  → percentage, used in the CSS mask-image radial-gradient
-   *   --reticle-x / --reticle-y → pixel offset, used to position the reticle ring
-   * All three share the same coordinate space (relative to the card container).
-   */
+  // ─── Spider-Man state for mobile glitch cycle ───────────────────────────
+  // glitchPhase: "idle" | "glitching" | "spiderman" | "returning"
+  const [glitchPhase, setGlitchPhase] = useState<"idle" | "glitching" | "spiderman" | "returning">("idle");
+  const glitchTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const glitchIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track whether the manual tap is currently controlling the reveal
+  const manualRevealActive = useRef(false);
+
+  const clearGlitchTimers = useCallback(() => {
+    glitchTimers.current.forEach(clearTimeout);
+    glitchTimers.current = [];
+  }, []);
+
+  // One glitch cycle: glitch → spiderman → return → idle
+  const runGlitchCycle = useCallback(() => {
+    // Don't interrupt a manual reveal
+    if (manualRevealActive.current) return;
+
+    clearGlitchTimers();
+    setGlitchPhase("glitching");
+
+    const t1 = setTimeout(() => {
+      setGlitchPhase("spiderman");
+
+      const t2 = setTimeout(() => {
+        setGlitchPhase("returning");
+
+        const t3 = setTimeout(() => {
+          setGlitchPhase("idle");
+        }, 350);
+        glitchTimers.current.push(t3);
+      }, 900); // Spider-Man visible for ~900ms
+      glitchTimers.current.push(t2);
+    }, 350); // Glitch transition ~350ms
+    glitchTimers.current.push(t1);
+  }, [clearGlitchTimers]);
+
+  // Start/stop the automatic glitch interval on mobile
+  useEffect(() => {
+    if (glitchIntervalRef.current) {
+      clearInterval(glitchIntervalRef.current);
+      glitchIntervalRef.current = null;
+    }
+
+    if (isMobile && !prefersReducedMotion) {
+      // Wait 2 s before first trigger so page settles
+      const initialDelay = setTimeout(() => {
+        runGlitchCycle();
+        glitchIntervalRef.current = setInterval(runGlitchCycle, 4000);
+      }, 2000);
+
+      return () => {
+        clearTimeout(initialDelay);
+        if (glitchIntervalRef.current) clearInterval(glitchIntervalRef.current);
+        clearGlitchTimers();
+      };
+    }
+    return () => { clearGlitchTimers(); };
+  }, [isMobile, prefersReducedMotion, runGlitchCycle, clearGlitchTimers]);
+
+  // Pause interval when page is hidden
+  useEffect(() => {
+    if (!isMobile || prefersReducedMotion) return;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (glitchIntervalRef.current) {
+          clearInterval(glitchIntervalRef.current);
+          glitchIntervalRef.current = null;
+        }
+        clearGlitchTimers();
+        setGlitchPhase("idle");
+        manualRevealActive.current = false;
+      } else {
+        if (!glitchIntervalRef.current) {
+          glitchIntervalRef.current = setInterval(runGlitchCycle, 4000);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [isMobile, prefersReducedMotion, runGlitchCycle, clearGlitchTimers]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      if (glitchIntervalRef.current) clearInterval(glitchIntervalRef.current);
+      clearGlitchTimers();
+    };
+  }, [clearGlitchTimers]);
+
+  // ─── Desktop: Spider-Man Cursor Tracking ─────────────────────────────────
   const updatePointerPosition = useCallback((clientX: number, clientY: number) => {
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
@@ -112,21 +228,37 @@ export default function Hero() {
     }
   };
 
-  // Touch tap toggle for mobile
+  // ─── Mobile: Manual tap toggle ────────────────────────────────────────────
   const handleTouchTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isTouchDevice) {
+    if (!isTouchDevice) return;
+
+    if (manualRevealActive.current) {
+      // Second tap: close manual reveal, resume auto cycle
+      manualRevealActive.current = false;
+      setIsRevealed(false);
+    } else {
+      // First tap: interrupt glitch cycle, show Spider-Man via cursor system
+      clearGlitchTimers();
+      setGlitchPhase("idle");
+      manualRevealActive.current = true;
+      // Center the reveal on the tap point
       updatePointerPosition(e.clientX, e.clientY);
-      setIsRevealed((prev) => !prev);
+      setIsRevealed(true);
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (rafId.current) cancelAnimationFrame(rafId.current);
-    };
-  }, []);
-
   const radius = siteConfig.spiderManCalibration.revealRadius;
+
+  // ─── Derived display state ────────────────────────────────────────────────
+  // On desktop: use isRevealed driven by pointer events
+  // On mobile:  use manualRevealActive (tap) OR glitch phases
+  const showSpidermanMask = isMobile
+    ? manualRevealActive.current && isRevealed
+    : isRevealed;
+
+  // Glitch effect active flag (only mobile)
+  const isGlitching = isMobile && (glitchPhase === "glitching" || glitchPhase === "returning");
+  const spidermanFullReveal = isMobile && glitchPhase === "spiderman" && !manualRevealActive.current;
 
   // ─── Framer Motion Variants ───────────────────────────────────────────────
   const containerVariants = {
@@ -237,28 +369,13 @@ export default function Hero() {
           transition={{ duration: 0.65, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
           className="lg:col-span-5 flex flex-col items-center"
         >
-          {/*
-           * PORTRAIT CARD
-           * ─────────────
-           * Layer A: card backdrop (dark surface + halftone dots + accent rings)
-           * Layer B: base portrait  — has an EXCLUSION MASK when revealed,
-           *          hiding the photo pixels inside the circle so Spider-Man
-           *          transparent regions don't bleed the real face through.
-           * Layer C: Spider-Man PNG — revealed only inside the circle.
-           * Layer D: reticle ring
-           * Layer E: UI badges
-           *
-           * Both Layer B's exclusion mask and Layer C's reveal mask use the
-           * same --mouse-x / --mouse-y / --mask-radius CSS vars, guaranteeing
-           * perfect registration regardless of card position on the page.
-           */}
           <div
             ref={cardRef}
             onPointerEnter={handlePointerEnter}
             onPointerMove={handlePointerMove}
             onPointerLeave={handlePointerLeave}
             onClick={handleTouchTap}
-            className="portrait-card relative w-full max-w-[390px] aspect-[4/5] rounded-2xl border border-white/10 shadow-2xl overflow-hidden group select-none cursor-crosshair"
+            className={`portrait-card relative w-full max-w-[390px] aspect-[4/5] rounded-2xl border border-white/10 shadow-2xl overflow-hidden group select-none cursor-crosshair${isGlitching ? " portrait-glitch" : ""}`}
             style={
               {
                 "--mouse-x": "50%",
@@ -280,30 +397,28 @@ export default function Hero() {
                   backgroundSize: "20px 20px",
                 }}
               />
-              {/* Subtle red accent ring — top-left corner glow */}
               <div className="absolute -top-8 -left-8 w-48 h-48 rounded-full border border-[#D9323E]/20 pointer-events-none" />
               <div className="absolute -top-4 -left-4 w-28 h-28 rounded-full border border-[#D9323E]/10 pointer-events-none" />
-              {/* Bottom-right geometric accent */}
               <div className="absolute -bottom-6 -right-6 w-40 h-40 rounded-full border border-[#9CA6B2]/10 pointer-events-none" />
-              {/* Ambient edge glow driven by hover */}
               <div className="absolute -inset-1 bg-gradient-to-tr from-[#D9323E]/20 to-[#C8F36B]/15 rounded-2xl blur-lg pointer-events-none opacity-40 group-hover:opacity-75 transition-opacity duration-300" />
             </div>
 
-            {/* ── Layer B: Base Portrait with optional EXCLUSION mask ──────── */}
+            {/* ── Layer B: Base Portrait with exclusion mask ──────────────── */}
             {/*
-             * When isRevealed=true, we apply an INVERTED radial mask: fully
-             * opaque everywhere EXCEPT inside the circle (where it becomes
-             * transparent), removing the portrait pixels in that region.
-             * Spider-Man then shows through without any bleed from the portrait.
+             * On DESKTOP: exclusion mask follows cursor (isRevealed from pointer).
+             * On MOBILE manual tap: same exclusion mask from tap position.
+             * On MOBILE glitch full reveal: portrait fades out (spidermanFullReveal).
              */}
             <div
               className="absolute inset-0 w-full h-full pointer-events-none transition-[mask-image,opacity] duration-[240ms] ease-out"
               style={
-                isRevealed
+                showSpidermanMask
                   ? {
                       maskImage: `radial-gradient(circle ${radius}px at var(--mouse-x) var(--mouse-y), transparent 0%, transparent calc(${radius}px - 24px), rgba(0,0,0,0.45) calc(${radius}px - 8px), black ${radius}px)`,
                       WebkitMaskImage: `radial-gradient(circle ${radius}px at var(--mouse-x) var(--mouse-y), transparent 0%, transparent calc(${radius}px - 24px), rgba(0,0,0,0.45) calc(${radius}px - 8px), black ${radius}px)`,
                     }
+                  : spidermanFullReveal
+                  ? { opacity: 0 }
                   : {}
               }
             >
@@ -317,55 +432,72 @@ export default function Hero() {
               />
             </div>
 
-            {/* ── Layer C: Spider-Man PNG with REVEAL mask ─────────────────── */}
+            {/* ── Layer C: Spider-Man PNG — two display modes ───────────────── */}
             {/*
-             * Revealed only inside the circle. When the spider-man PNG has
-             * transparent pixels inside the circle, they show Layer A (the
-             * dark halftone backdrop) — NOT the portrait (Layer B is masked
-             * out at that area). This achieves true replacement compositing.
+             * Mode 1 (desktop / mobile manual): spotlight mask from cursor position.
+             * Mode 2 (mobile glitch cycle): full-card reveal without mask.
              */}
-            <div
-              className="absolute inset-0 w-full h-full pointer-events-none select-none spiderman-spotlight-mask"
-              style={{
-                opacity: isRevealed ? siteConfig.spiderManCalibration.opacity : 0,
-              }}
-            >
-              <Image
-                src="/assets/spiderman.png"
-                alt="Spider-Man identity spotlight overlay"
-                fill
-                sizes="(max-width: 768px) 100vw, 400px"
-                className="object-cover object-top select-none pointer-events-none"
-              />
-            </div>
-
-            {/* ── Layer D: Reticle ring following cursor ───────────────────── */}
-            <div
-              className={`absolute pointer-events-none rounded-full border border-[#D9323E]/50 shadow-[0_0_24px_rgba(217,50,62,0.3)] transition-opacity duration-200 ${
-                isRevealed ? "opacity-100" : "opacity-0"
-              }`}
-              style={{
-                width: `${radius * 2}px`,
-                height: `${radius * 2}px`,
-                transform: "translate3d(calc(var(--reticle-x) - 50%), calc(var(--reticle-y) - 50%), 0)",
-                willChange: "transform",
-              }}
-            >
-              {/* Subtle crosshair detail */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
-                <div className="w-full h-px bg-[#D9323E]/40" />
-                <div className="h-full w-px bg-[#D9323E]/40 absolute" />
+            {spidermanFullReveal ? (
+              // Full reveal during glitch auto-cycle
+              <div
+                className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                style={{
+                  opacity: siteConfig.spiderManCalibration.opacity,
+                  transition: "opacity 0.25s ease",
+                }}
+              >
+                <Image
+                  src="/assets/spiderman.png"
+                  alt="Spider-Man identity spotlight overlay"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 400px"
+                  className="object-cover object-top select-none pointer-events-none"
+                />
               </div>
-            </div>
+            ) : (
+              // Spotlight mask (desktop cursor or mobile tap)
+              <div
+                className="absolute inset-0 w-full h-full pointer-events-none select-none spiderman-spotlight-mask"
+                style={{
+                  opacity: showSpidermanMask ? siteConfig.spiderManCalibration.opacity : 0,
+                }}
+              >
+                <Image
+                  src="/assets/spiderman.png"
+                  alt="Spider-Man identity spotlight overlay"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 400px"
+                  className="object-cover object-top select-none pointer-events-none"
+                />
+              </div>
+            )}
+
+            {/* ── Layer D: Reticle ring (desktop only) ─────────────────────── */}
+            {!isMobile && (
+              <div
+                className={`absolute pointer-events-none rounded-full border border-[#D9323E]/50 shadow-[0_0_24px_rgba(217,50,62,0.3)] transition-opacity duration-200 ${
+                  isRevealed ? "opacity-100" : "opacity-0"
+                }`}
+                style={{
+                  width: `${radius * 2}px`,
+                  height: `${radius * 2}px`,
+                  transform: "translate3d(calc(var(--reticle-x) - 50%), calc(var(--reticle-y) - 50%), 0)",
+                  willChange: "transform",
+                }}
+              >
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
+                  <div className="w-full h-px bg-[#D9323E]/40" />
+                  <div className="h-full w-px bg-[#D9323E]/40 absolute" />
+                </div>
+              </div>
+            )}
 
             {/* ── Layer E: UI Badges ───────────────────────────────────────── */}
-
-            {/* Top-right: reveal hint */}
             <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1 bg-black/80 backdrop-blur-md border border-white/10 text-[#D9323E] rounded-full font-mono text-[10px] tracking-widest uppercase pointer-events-none shadow-md">
               <span className="w-1.5 h-1.5 rounded-full bg-[#D9323E] animate-pulse" />
               <span>
                 {isTouchDevice
-                  ? isRevealed
+                  ? manualRevealActive.current && isRevealed
                     ? language === "id" ? "KETUK TUTUP" : "TAP TO CLOSE"
                     : language === "id" ? "KETUK SOROT" : "TAP REVEAL"
                   : t("hero_spotlight_hint")}
